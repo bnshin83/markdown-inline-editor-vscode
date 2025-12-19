@@ -14,6 +14,7 @@ export interface DecorationRange {
   endPos: number;
   type: DecorationType;
   url?: string; // URL for link decorations (for clickable links)
+  level?: number; // Nesting level for blockquotes
 }
 
 /**
@@ -34,7 +35,8 @@ export type DecorationType =
   | 'heading5'
   | 'heading6'
   | 'link'
-  | 'image';
+  | 'image'
+  | 'blockquote';
 
 /**
  * Parser for extracting decoration ranges from markdown text.
@@ -132,6 +134,9 @@ export class MarkdownParser {
   ): void {
     // Track ancestors during traversal
     const ancestors: Node[] = [];
+    
+    // Track processed blockquote positions to avoid duplicates from nested blockquotes
+    const processedBlockquotePositions = new Set<number>();
 
     this.visit(ast, (node: Node, index: number | undefined, parent: Node | undefined) => {
       if (!node.position || node.position.start.offset === undefined || node.position.end.offset === undefined) {
@@ -185,7 +190,7 @@ export class MarkdownParser {
           break;
 
         case 'blockquote':
-          this.processBlockquote(node as Blockquote, text, decorations);
+          this.processBlockquote(node as Blockquote, text, decorations, processedBlockquotePositions);
           break;
       }
     });
@@ -696,11 +701,17 @@ export class MarkdownParser {
 
   /**
    * Processes a blockquote node.
+   * 
+   * Replaces '>' characters with vertical bars for visual indication.
+   * Nested blockquotes automatically show multiple bars (one per '>').
+   * 
+   * @param processedPositions - Set to track which positions have already been processed
    */
   private processBlockquote(
     node: Blockquote,
     text: string,
-    decorations: DecorationRange[]
+    decorations: DecorationRange[],
+    processedPositions: Set<number>
   ): void {
     if (!node.position || node.position.start.offset === undefined || node.position.end.offset === undefined) return;
 
@@ -714,31 +725,42 @@ export class MarkdownParser {
       // Find line start (either document start or after newline)
       const lineStart = pos === 0 ? 0 : text.lastIndexOf('\n', pos - 1) + 1;
       
-      // Find '>' marker in this line (should be at or near line start)
-      const gtIndex = text.indexOf('>', lineStart);
-      if (gtIndex !== -1 && gtIndex < end) {
-        // Check if there's whitespace before '>' (allowed in markdown)
-        const beforeGt = text.substring(lineStart, gtIndex);
-        const isAtLineStart = beforeGt.trim().length === 0;
+      // Find all '>' markers on this line (for nested blockquotes like "> > >")
+      // We process all '>' markers that are at the start of the line or after whitespace/other '>'
+      let searchStart = lineStart;
+      const lineEnd = text.indexOf('\n', lineStart);
+      const actualLineEnd = lineEnd === -1 ? end : Math.min(lineEnd, end);
+      
+      while (searchStart < actualLineEnd) {
+        const gtIndex = text.indexOf('>', searchStart);
+        if (gtIndex === -1 || gtIndex >= actualLineEnd) break;
         
-        if (isAtLineStart) {
-          // Check if there's a space after '>'
-          const afterGt = gtIndex + 1;
-          if (afterGt < end && text[afterGt] === ' ') {
-            // Hide '> ' (marker and space)
-            decorations.push({
-              startPos: gtIndex,
-              endPos: afterGt + 1,
-              type: 'hide',
-            });
-          } else {
-            // Just hide '>'
-            decorations.push({
-              startPos: gtIndex,
-              endPos: afterGt,
-              type: 'hide',
-            });
-          }
+        // Check if we've already processed this position (from a parent blockquote node)
+        if (processedPositions.has(gtIndex)) {
+          searchStart = gtIndex + 1;
+          continue;
+        }
+        
+        // Check if there's only whitespace and/or '>' before this '>'
+        // This allows nested blockquotes like "> > >" where each '>' is valid
+        const beforeGt = text.substring(lineStart, gtIndex);
+        const isBlockquoteMarker = beforeGt.trim().length === 0 || /^[\s>]*$/.test(beforeGt);
+        
+        if (isBlockquoteMarker) {
+          // Mark this position as processed
+          processedPositions.add(gtIndex);
+          
+          // Replace only the '>' character with blockquote decoration (vertical bar)
+          // Keep the space after it visible to maintain proper spacing
+          decorations.push({
+            startPos: gtIndex,
+            endPos: gtIndex + 1,
+            type: 'blockquote',
+          });
+          searchStart = gtIndex + 1;
+        } else {
+          // Not a blockquote marker, move past it
+          searchStart = gtIndex + 1;
         }
       }
       

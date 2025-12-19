@@ -15,6 +15,7 @@ import {
   Heading6DecorationType,
   LinkDecorationType,
   ImageDecorationType,
+  BlockquoteDecorationType,
 } from './decorations';
 import { MarkdownParser, DecorationRange, DecorationType } from './parser';
 
@@ -72,6 +73,7 @@ export class Decorator {
   private heading6DecorationType = Heading6DecorationType();
   private linkDecorationType = LinkDecorationType();
   private imageDecorationType = ImageDecorationType();
+  private blockquoteDecorationType = BlockquoteDecorationType();
 
   /**
    * Sets the active text editor and immediately updates decorations.
@@ -347,6 +349,7 @@ export class Decorator {
     this.activeEditor.setDecorations(this.heading6DecorationType, filteredDecorations.get('heading6') || []);
     this.activeEditor.setDecorations(this.linkDecorationType, filteredDecorations.get('link') || []);
     this.activeEditor.setDecorations(this.imageDecorationType, filteredDecorations.get('image') || []);
+    this.activeEditor.setDecorations(this.blockquoteDecorationType, filteredDecorations.get('blockquote') || []);
   }
 
   /**

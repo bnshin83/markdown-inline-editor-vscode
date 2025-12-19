@@ -207,3 +207,23 @@ export function ImageDecorationType() {
     fontStyle: 'italic',
   });
 }
+
+/**
+ * Creates a decoration type for blockquote styling.
+ * 
+ * Replaces '>' characters with a vertical blue bar.
+ * Nested blockquotes automatically show multiple bars (one per '>').
+ * 
+ * @returns {vscode.TextEditorDecorationType} A decoration type for blockquotes
+ */
+export function BlockquoteDecorationType() {
+  // Hide the '>' character and replace it with a vertical bar
+  return window.createTextEditorDecorationType({
+    textDecoration: 'none; display: none;', // Properly hide the original '>' character
+    before: {
+      contentText: '│',
+      color: new ThemeColor('textLink.foreground'),
+      fontWeight: 'bold',
+    },
+  });
+}
