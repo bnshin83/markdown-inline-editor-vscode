@@ -27,6 +27,7 @@ export type DecorationType =
   | 'boldItalic'
   | 'strikethrough'
   | 'code'
+  | 'codeBlock'
   | 'heading'
   | 'heading1'
   | 'heading2'
@@ -37,7 +38,6 @@ export type DecorationType =
   | 'link'
   | 'image'
   | 'blockquote'
-  | 'blockquoteContent'
   | 'listItem'
   | 'horizontalRule';
 
@@ -522,37 +522,36 @@ export class MarkdownParser {
     const closingFence = text.lastIndexOf('```', end);
     if (closingFence === -1 || closingFence <= fenceStart) return;
 
-    // Add code decoration for content
-    const contentStart = fenceStart + 3;
-    // Skip language identifier if present (first line after fence)
-    let codeStart = contentStart;
-    let fenceEnd = fenceStart + 3;
-    const firstLineEnd = text.indexOf('\n', codeStart);
-    if (firstLineEnd !== -1 && firstLineEnd < closingFence) {
-      // Language identifier is present - include it in the hidden fence
-      fenceEnd = firstLineEnd;
-      codeStart = firstLineEnd + 1;
-    }
+    // Find the end of the opening fence line (including language identifier and newline)
+    const openingLineEnd = text.indexOf('\n', fenceStart);
+    const openingEnd = openingLineEnd !== -1 && openingLineEnd < closingFence ? openingLineEnd + 1 : fenceStart + 3;
 
-    // Hide opening fence (including language identifier if present)
+    // Find the end of the closing fence (just after ```)
+    const closingFenceEnd = closingFence + 3;
+    
+    // Find if there's a newline after the closing fence
+    const closingLineEnd = text.indexOf('\n', closingFence);
+    const closingEnd = closingLineEnd !== -1 ? closingLineEnd + 1 : end;
+
+    // Apply code block background to the entire block including fence lines
+    // but NOT including the newline after the closing fence
     decorations.push({
       startPos: fenceStart,
-      endPos: fenceEnd,
+      endPos: closingFenceEnd,
+      type: 'codeBlock',
+    });
+
+    // Hide the opening fence line (```, language identifier, and newline)
+    decorations.push({
+      startPos: fenceStart,
+      endPos: openingEnd,
       type: 'hide',
     });
 
-    if (codeStart < closingFence) {
-      decorations.push({
-        startPos: codeStart,
-        endPos: closingFence,
-        type: 'code',
-      });
-    }
-
-    // Hide closing fence
+    // Hide the closing fence line (```, and newline if present)
     decorations.push({
       startPos: closingFence,
-      endPos: closingFence + 3,
+      endPos: closingEnd,
       type: 'hide',
     });
   }
@@ -728,13 +727,6 @@ export class MarkdownParser {
 
     const start = node.position.start.offset;
     const end = node.position.end.offset;
-
-    // Apply text color to the entire blockquote content
-    decorations.push({
-      startPos: start,
-      endPos: end,
-      type: 'blockquoteContent',
-    });
 
     // Find all '>' markers at the start of lines within this blockquote
     // Blockquotes can span multiple lines, each starting with '>'

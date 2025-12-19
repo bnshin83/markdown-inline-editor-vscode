@@ -67,9 +67,22 @@ export function StrikethroughDecorationType() {
  * @returns {vscode.TextEditorDecorationType} A decoration type for inline code
  */
 export function CodeDecorationType() {
+  // Note: backgroundColor doesn't work for inline decorations (only for isWholeLine: true)
+  // So we just use the theme's default styling
   return window.createTextEditorDecorationType({
-    backgroundColor: new ThemeColor('textCodeBlock.background'),
-    borderRadius: '3px',
+    // No custom styling - will use editor's default inline code appearance
+  });
+}
+
+/**
+ * Creates a decoration type for code block styling.
+ * 
+ * @returns {vscode.TextEditorDecorationType} A decoration type for code blocks
+ */
+export function CodeBlockDecorationType() {
+  return window.createTextEditorDecorationType({
+    backgroundColor: new ThemeColor('textCodeBlock.background'), // Use theme color instead of red
+    isWholeLine: true, // Extend background to full line width
   });
 }
 
@@ -196,19 +209,6 @@ export function BlockquoteDecorationType() {
       color: new ThemeColor('textLink.foreground'),
       fontWeight: 'bold',
     },
-  });
-}
-
-/**
- * Creates a decoration type for blockquote content styling.
- * 
- * Uses regular text color for readability.
- * 
- * @returns {vscode.TextEditorDecorationType} A decoration type for blockquote content
- */
-export function BlockquoteContentDecorationType() {
-  return window.createTextEditorDecorationType({
-    // No color specified - uses regular text color for readability
   });
 }
 

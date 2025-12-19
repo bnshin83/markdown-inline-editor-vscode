@@ -6,6 +6,7 @@ import {
   BoldItalicDecorationType,
   StrikethroughDecorationType,
   CodeDecorationType,
+  CodeBlockDecorationType,
   HeadingDecorationType,
   Heading1DecorationType,
   Heading2DecorationType,
@@ -16,7 +17,6 @@ import {
   LinkDecorationType,
   ImageDecorationType,
   BlockquoteDecorationType,
-  BlockquoteContentDecorationType,
   ListItemDecorationType,
   HorizontalRuleDecorationType,
 } from './decorations';
@@ -67,6 +67,7 @@ export class Decorator {
   private boldItalicDecorationType = BoldItalicDecorationType();
   private strikethroughDecorationType = StrikethroughDecorationType();
   private codeDecorationType = CodeDecorationType();
+  private codeBlockDecorationType = CodeBlockDecorationType();
   private headingDecorationType = HeadingDecorationType();
   private heading1DecorationType = Heading1DecorationType();
   private heading2DecorationType = Heading2DecorationType();
@@ -77,7 +78,6 @@ export class Decorator {
   private linkDecorationType = LinkDecorationType();
   private imageDecorationType = ImageDecorationType();
   private blockquoteDecorationType = BlockquoteDecorationType();
-  private blockquoteContentDecorationType = BlockquoteContentDecorationType();
   private listItemDecorationType = ListItemDecorationType();
   private horizontalRuleDecorationType = HorizontalRuleDecorationType();
 
@@ -346,6 +346,7 @@ export class Decorator {
     this.activeEditor.setDecorations(this.boldItalicDecorationType, filteredDecorations.get('boldItalic') || []);
     this.activeEditor.setDecorations(this.strikethroughDecorationType, filteredDecorations.get('strikethrough') || []);
     this.activeEditor.setDecorations(this.codeDecorationType, filteredDecorations.get('code') || []);
+    this.activeEditor.setDecorations(this.codeBlockDecorationType, filteredDecorations.get('codeBlock') || []);
     this.activeEditor.setDecorations(this.headingDecorationType, filteredDecorations.get('heading') || []);
     this.activeEditor.setDecorations(this.heading1DecorationType, filteredDecorations.get('heading1') || []);
     this.activeEditor.setDecorations(this.heading2DecorationType, filteredDecorations.get('heading2') || []);
@@ -356,7 +357,6 @@ export class Decorator {
     this.activeEditor.setDecorations(this.linkDecorationType, filteredDecorations.get('link') || []);
     this.activeEditor.setDecorations(this.imageDecorationType, filteredDecorations.get('image') || []);
     this.activeEditor.setDecorations(this.blockquoteDecorationType, filteredDecorations.get('blockquote') || []);
-    this.activeEditor.setDecorations(this.blockquoteContentDecorationType, filteredDecorations.get('blockquoteContent') || []);
     this.activeEditor.setDecorations(this.listItemDecorationType, filteredDecorations.get('listItem') || []);
     this.activeEditor.setDecorations(this.horizontalRuleDecorationType, filteredDecorations.get('horizontalRule') || []);
   }
