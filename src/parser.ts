@@ -98,7 +98,10 @@ export class MarkdownParser {
     }
 
     // Normalize line endings to \n for consistent position tracking
-    const normalizedText = text.replace(/\r\n|\r/g, '\n');
+    // Optimization: Only normalize if document contains CRLF
+    const normalizedText = text.indexOf('\r') !== -1 
+      ? text.replace(/\r\n|\r/g, '\n')
+      : text;
     
     const decorations: DecorationRange[] = [];
     
@@ -144,70 +147,74 @@ export class MarkdownParser {
     const ancestorMap = new Map<Node, Node[]>();
 
     this.visit(ast, (node: Node, index: number | undefined, parent: Node | undefined) => {
-      if (!node.position || node.position.start.offset === undefined || node.position.end.offset === undefined) {
-        return;
-      }
-
-      // Build ancestor chain efficiently using parent's cached ancestors
-      const currentAncestors: Node[] = [];
-      if (parent) {
-        currentAncestors.push(parent);
-        // Get parent's ancestors from cache (O(1) lookup instead of O(n) search)
-        const parentAncestors = ancestorMap.get(parent);
-        if (parentAncestors) {
-          currentAncestors.push(...parentAncestors);
+      // Optimization: Trust remark's position data in hot path
+      // Individual process methods still validate for safety
+      try {
+        // Build ancestor chain efficiently using parent's cached ancestors
+        const currentAncestors: Node[] = [];
+        if (parent) {
+          currentAncestors.push(parent);
+          // Get parent's ancestors from cache (O(1) lookup instead of O(n) search)
+          const parentAncestors = ancestorMap.get(parent);
+          if (parentAncestors) {
+            currentAncestors.push(...parentAncestors);
+          }
         }
-      }
-      
-      // Cache this node's ancestors for its children to use
-      if (currentAncestors.length > 0) {
-        ancestorMap.set(node, currentAncestors);
-      }
+        
+        // Cache this node's ancestors for its children to use
+        if (currentAncestors.length > 0) {
+          ancestorMap.set(node, currentAncestors);
+        }
 
-      switch (node.type) {
-        case 'heading':
-          this.processHeading(node as Heading, text, decorations);
-          break;
+        switch (node.type) {
+          case 'heading':
+            this.processHeading(node as Heading, text, decorations);
+            break;
 
-        case 'strong':
-          this.processStrong(node as Strong, text, decorations, currentAncestors);
-          break;
+          case 'strong':
+            this.processStrong(node as Strong, text, decorations, currentAncestors);
+            break;
 
-        case 'emphasis':
-          this.processEmphasis(node as Emphasis, text, decorations, currentAncestors);
-          break;
+          case 'emphasis':
+            this.processEmphasis(node as Emphasis, text, decorations, currentAncestors);
+            break;
 
-        case 'delete':
-          this.processStrikethrough(node as Delete, text, decorations);
-          break;
+          case 'delete':
+            this.processStrikethrough(node as Delete, text, decorations);
+            break;
 
-        case 'inlineCode':
-          this.processInlineCode(node as InlineCode, text, decorations);
-          break;
+          case 'inlineCode':
+            this.processInlineCode(node as InlineCode, text, decorations);
+            break;
 
-        case 'code':
-          this.processCodeBlock(node as Code, text, decorations);
-          break;
+          case 'code':
+            this.processCodeBlock(node as Code, text, decorations);
+            break;
 
-        case 'link':
-          this.processLink(node as Link, text, decorations);
-          break;
+          case 'link':
+            this.processLink(node as Link, text, decorations);
+            break;
 
-        case 'image':
-          this.processImage(node as Image, text, decorations);
-          break;
+          case 'image':
+            this.processImage(node as Image, text, decorations);
+            break;
 
-        case 'blockquote':
-          this.processBlockquote(node as Blockquote, text, decorations, processedBlockquotePositions);
-          break;
+          case 'blockquote':
+            this.processBlockquote(node as Blockquote, text, decorations, processedBlockquotePositions);
+            break;
 
-        case 'listItem':
-          this.processListItem(node as ListItem, text, decorations);
-          break;
+          case 'listItem':
+            this.processListItem(node as ListItem, text, decorations);
+            break;
 
-        case 'thematicBreak':
-          this.processThematicBreak(node as ThematicBreak, text, decorations);
-          break;
+          case 'thematicBreak':
+            this.processThematicBreak(node as ThematicBreak, text, decorations);
+            break;
+        }
+      } catch (error) {
+        // Gracefully handle invalid positions or processing errors
+        // Individual methods still validate, so this catches unexpected issues
+        console.warn('Error processing AST node:', node.type, error);
       }
     });
   }
@@ -784,8 +791,14 @@ export class MarkdownParser {
 
   /**
    * Handles empty image alt text that remark doesn't parse as an Image node.
+   * Optimized with early exit to avoid regex when no image syntax exists.
    */
   private handleEmptyImageAlt(text: string, decorations: DecorationRange[]): void {
+    // Early exit: check if '![' exists in text before running regex
+    if (text.indexOf('![') === -1) {
+      return;
+    }
+    
     // Find ![] patterns that weren't handled by processImage
     const regex = /!\[\]/g;
     let match;
@@ -812,12 +825,21 @@ export class MarkdownParser {
 
   /**
    * Gets the bold marker type (** or __) from source text.
+   * Optimized to use character code comparisons instead of substring allocation.
    */
   private getBoldMarker(text: string, pos: number): string | null {
     if (pos + 2 <= text.length) {
-      const marker = text.substring(pos, pos + 2);
-      if (marker === '**' || marker === '__') {
-        return marker;
+      const char1 = text.charCodeAt(pos);
+      const char2 = text.charCodeAt(pos + 1);
+      
+      // Check for '**' (asterisk = 0x2A)
+      if (char1 === 0x2A && char2 === 0x2A) {
+        return '**';
+      }
+      
+      // Check for '__' (underscore = 0x5F)
+      if (char1 === 0x5F && char2 === 0x5F) {
+        return '__';
       }
     }
     return null;
@@ -825,12 +847,20 @@ export class MarkdownParser {
 
   /**
    * Gets the italic marker type (* or _) from source text.
+   * Optimized to use character code comparisons instead of string allocation.
    */
   private getItalicMarker(text: string, pos: number): string | null {
     if (pos + 1 <= text.length) {
-      const char = text[pos];
-      if (char === '*' || char === '_') {
-        return char;
+      const charCode = text.charCodeAt(pos);
+      
+      // Check for '*' (asterisk = 0x2A)
+      if (charCode === 0x2A) {
+        return '*';
+      }
+      
+      // Check for '_' (underscore = 0x5F)
+      if (charCode === 0x5F) {
+        return '_';
       }
     }
     return null;
