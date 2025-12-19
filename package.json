@@ -66,7 +66,7 @@
     "package": "vsce package --out dist/extension.vsix",
     "build": "npm run compile && npm run package",
     "prepublishOnly": "npm run clean && npm run build",
-    "deploy:prod": "npm run clean && npm run build && vsce publish --packagePath dist/extension.vsix --pat $AZURE_DEVOPS_TOKEN && ovsx publish dist/extension.vsix --pat $OPEN_VSX_TOKEN"
+    "deploy:prod": "npm run clean && npm run build && vsce publish --packagePath dist/extension.vsix --pat $AZURE_DEVOPS_TOKEN"
   },
   "dependencies": {
     "remark-gfm": "^4.0.1",
