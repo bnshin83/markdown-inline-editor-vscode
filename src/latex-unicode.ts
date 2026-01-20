@@ -318,21 +318,6 @@ export function findLatexCommands(text: string, startOffset: number = 0): LatexR
         }
     }
 
-    // Handle \frac{numerator}{denominator} → numerator/denominator
-    const fracRegex = /\\frac\{([^}]*)\}\{([^}]*)\}/g;
-    while ((match = fracRegex.exec(text)) !== null) {
-        const fullMatch = match[0];
-        const numerator = match[1];
-        const denominator = match[2];
-
-        replacements.push({
-            startPos: startOffset + match.index,
-            endPos: startOffset + match.index + fullMatch.length,
-            latex: fullMatch,
-            unicode: numerator + '/' + denominator,
-        });
-    }
-
     return replacements;
 }
 
