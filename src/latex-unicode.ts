@@ -162,6 +162,19 @@ export const LATEX_TO_UNICODE: Record<string, string> = {
     '\\sup': 'sup',
     '\\inf': 'inf',
     '\\arg': 'arg',
+
+    // Additional comparison operators
+    '\\lesssim': '≲',
+    '\\gtrsim': '≳',
+    '\\lessapprox': '⪅',
+    '\\gtrapprox': '⪆',
+    '\\prec': '≺',
+    '\\succ': '≻',
+    '\\preceq': '⪯',
+    '\\succeq': '⪰',
+    '\\neg': '¬',
+    '\\land': '∧',
+    '\\lor': '∨',
 };
 
 /**
@@ -241,6 +254,17 @@ export function findLatexCommands(text: string, startOffset: number = 0): LatexR
             continue;
         }
 
+        // Handle \sqrt{x} → √x
+        if (command === '\\sqrt' && bracedContent) {
+            replacements.push({
+                startPos: startOffset + match.index,
+                endPos: startOffset + match.index + fullMatch.length,
+                latex: fullMatch,
+                unicode: '√' + bracedContent,
+            });
+            continue;
+        }
+
         // Check if this command has a Unicode equivalent
         const unicode = LATEX_TO_UNICODE[command];
         if (unicode) {
@@ -292,6 +316,21 @@ export function findLatexCommands(text: string, startOffset: number = 0): LatexR
                 unicode: unicode,
             });
         }
+    }
+
+    // Handle \frac{numerator}{denominator} → numerator/denominator
+    const fracRegex = /\\frac\{([^}]*)\}\{([^}]*)\}/g;
+    while ((match = fracRegex.exec(text)) !== null) {
+        const fullMatch = match[0];
+        const numerator = match[1];
+        const denominator = match[2];
+
+        replacements.push({
+            startPos: startOffset + match.index,
+            endPos: startOffset + match.index + fullMatch.length,
+            latex: fullMatch,
+            unicode: numerator + '/' + denominator,
+        });
     }
 
     return replacements;
