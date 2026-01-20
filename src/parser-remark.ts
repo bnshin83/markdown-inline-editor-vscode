@@ -4,6 +4,7 @@
 let unified: any;
 let remarkParse: any;
 let remarkGfm: any;
+let remarkMath: any;  // NEW: for math support
 let visit: any;
 
 export async function getRemarkProcessor() {
@@ -13,6 +14,7 @@ export async function getRemarkProcessor() {
       unified = require('unified').unified;
       remarkParse = require('remark-parse');
       remarkGfm = require('remark-gfm');
+      remarkMath = require('remark-math');  // NEW
       visit = require('unist-util-visit').visit;
     } catch {
       // Fall back to ESM dynamic import (for Jest/testing)
@@ -20,6 +22,7 @@ export async function getRemarkProcessor() {
       unified = unifiedModule.unified;
       remarkParse = await import('remark-parse');
       remarkGfm = await import('remark-gfm');
+      remarkMath = await import('remark-math');  // NEW
       const visitModule = await import('unist-util-visit');
       visit = visitModule.visit;
     }
@@ -29,6 +32,7 @@ export async function getRemarkProcessor() {
     unified,
     remarkParse: remarkParse.default || remarkParse,
     remarkGfm: remarkGfm.default || remarkGfm,
+    remarkMath: remarkMath.default || remarkMath,  // NEW
     visit,
   };
 }
@@ -36,11 +40,10 @@ export async function getRemarkProcessor() {
 // Synchronous version for VS Code extension (uses require)
 export function getRemarkProcessorSync() {
   if (!unified) {
-    // Use require - works in VS Code extension CommonJS context
-    // For Jest, we need to ensure transformIgnorePatterns includes these modules
     unified = require('unified').unified;
     remarkParse = require('remark-parse');
     remarkGfm = require('remark-gfm');
+    remarkMath = require('remark-math');  // NEW
     visit = require('unist-util-visit').visit;
   }
 
@@ -48,7 +51,7 @@ export function getRemarkProcessorSync() {
     unified,
     remarkParse: remarkParse.default || remarkParse,
     remarkGfm: remarkGfm.default || remarkGfm,
+    remarkMath: remarkMath.default || remarkMath,  // NEW
     visit,
   };
 }
-

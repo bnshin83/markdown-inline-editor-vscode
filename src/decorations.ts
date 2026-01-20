@@ -150,13 +150,13 @@ export function StrikethroughDecorationType() {
  */
 export function CodeDecorationType() {
   const isDark = isDarkTheme();
-  
+
   // For dark themes: use white overlay to lighten (~30% brighter)
   // For light themes: use black overlay to darken (~30% darker)
   const backgroundColor = isDark
     ? `rgba(255, 255, 255, ${BRIGHTNESS_OVERLAY_OPACITY})` // White overlay - lightens dark backgrounds
     : `rgba(0, 0, 0, ${BRIGHTNESS_OVERLAY_OPACITY})`;      // Black overlay - darkens light backgrounds
-  
+
   return window.createTextEditorDecorationType({
     backgroundColor: backgroundColor,
   });
@@ -239,7 +239,7 @@ const HEADING_CONFIG = [
   { size: '120%', bold: true },  // H3: Just above body text
   { size: '110%', bold: false }, // H4: Subtle bump
   { size: '100%', bold: false }, // H5: Same size, usually distinct by color/bold
-  { size: '90%',  bold: false }, // H6: Slightly diminished
+  { size: '90%', bold: false }, // H6: Slightly diminished
 ];
 /**
  * Creates a heading decoration type with the specified level.
@@ -250,7 +250,7 @@ const HEADING_CONFIG = [
 function createHeadingDecoration(level: number) {
   const config = HEADING_CONFIG[level - 1];
   if (!config) throw new Error(`Invalid heading level: ${level}`);
-  
+
   return window.createTextEditorDecorationType({
     textDecoration: `none; font-size: ${config.size};`,
     ...(config.bold ? { fontWeight: 'bold' } : {}),
@@ -403,3 +403,37 @@ export function CheckboxCheckedDecorationType() {
     },
   });
 }
+
+/**
+ * Creates a decoration type for inline math styling ($...$).
+ * Uses italic and a subtle color to distinguish from regular text.
+ * 
+ * @returns {vscode.TextEditorDecorationType} A decoration type for inline math
+ */
+export function InlineMathDecorationType() {
+  return window.createTextEditorDecorationType({
+    fontStyle: 'italic',
+    color: new ThemeColor('editorLineNumber.foreground'),
+  });
+}
+
+/**
+ * Creates a decoration type for display math styling ($$...$$ or \[...\]).
+ * Uses italic with a subtle background tint for block-level math.
+ * 
+ * @returns {vscode.TextEditorDecorationType} A decoration type for display math
+ */
+export function DisplayMathDecorationType() {
+  const isDark = isDarkTheme();
+
+  // Subtle blue/purple tint to distinguish math blocks
+  const backgroundColor = isDark
+    ? 'rgba(100, 100, 200, 0.08)'  // Subtle tint for dark themes
+    : 'rgba(100, 100, 200, 0.04)'; // Even subtler for light themes
+
+  return window.createTextEditorDecorationType({
+    fontStyle: 'italic',
+    backgroundColor: backgroundColor,
+  });
+}
+

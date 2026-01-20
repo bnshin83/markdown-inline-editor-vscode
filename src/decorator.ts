@@ -28,6 +28,8 @@ import {
   CheckboxCheckedDecorationType,
   FrontmatterDecorationType,
   FrontmatterDelimiterDecorationType,
+  InlineMathDecorationType,
+  DisplayMathDecorationType,
 } from './decorations';
 import { MarkdownParser, DecorationRange, DecorationType, ScopeRange } from './parser';
 import { mapNormalizedToOriginal } from './position-mapping';
@@ -135,6 +137,11 @@ export class Decorator {
   private checkboxCheckedDecorationType = CheckboxCheckedDecorationType();
   private frontmatterDecorationType = FrontmatterDecorationType();
   private frontmatterDelimiterDecorationType = FrontmatterDelimiterDecorationType(this.getFrontmatterDelimiterOpacity());
+  private inlineMathDecorationType = InlineMathDecorationType();
+  private displayMathDecorationType = DisplayMathDecorationType();
+
+  /** Cache for dynamically created LaTeX symbol decoration types, keyed by unicode char */
+  private latexSymbolDecorationCache = new Map<string, TextEditorDecorationType>();
 
   /**
    * Sets the active text editor and immediately updates decorations.
@@ -378,7 +385,7 @@ export class Decorator {
     for (const decorationType of this.decorationTypeMap.values()) {
       this.activeEditor.setDecorations(decorationType, []);
     }
-    
+
     // Also clear ghost faint decoration (not in decorationTypeMap)
     this.activeEditor.setDecorations(this.ghostFaintDecorationType, []);
   }
@@ -426,8 +433,8 @@ export class Decorator {
     // Filter decorations based on selections (pass original text for offset adjustment)
     const filtered = this.filterDecorations(decorations, scopes, originalText);
 
-    // Apply decorations
-    this.applyDecorations(filtered);
+    // Apply decorations (pass raw decorations for latexSymbol processing)
+    this.applyDecorations(filtered, decorations, originalText);
   }
 
   /**
@@ -457,7 +464,7 @@ export class Decorator {
     const uri = editor.document.uri;
     const scheme = uri.scheme;
     const uriString = uri.toString();
-    
+
     // Check for known diff-related schemes
     if (Decorator.DIFF_SCHEMES.includes(scheme)) {
       return true;
@@ -465,16 +472,16 @@ export class Decorator {
 
     // Check URI string for diff-related patterns
     const uriLower = uriString.toLowerCase();
-    if (uriLower.includes('diff') || uriLower.includes('merge') || 
-        uriLower.includes('compare')) {
+    if (uriLower.includes('diff') || uriLower.includes('merge') ||
+      uriLower.includes('compare')) {
       return true;
     }
 
     // Check URI query parameters
     if (uri.query) {
       const query = uri.query.toLowerCase();
-      if (query.includes('diff') || query.includes('merge') || 
-          query.includes('compare') || query.includes('path=')) {
+      if (query.includes('diff') || query.includes('merge') ||
+        query.includes('compare') || query.includes('path=')) {
         return true;
       }
     }
@@ -644,13 +651,13 @@ export class Decorator {
       // Range.contains() uses exclusive end, so we also check if position equals start or end
       const matchingScopes = scopes.filter((scope) => {
         const isInside = scope.range.contains(position);
-        const isAtStart = position.line === scope.range.start.line && 
-                          position.character === scope.range.start.character;
-        const isAtEnd = position.line === scope.range.end.line && 
-                        position.character === scope.range.end.character;
+        const isAtStart = position.line === scope.range.start.line &&
+          position.character === scope.range.start.character;
+        const isAtEnd = position.line === scope.range.end.line &&
+          position.character === scope.range.end.character;
         return isInside || isAtStart || isAtEnd;
       });
-      
+
       if (matchingScopes.length === 0) {
         continue;
       }
@@ -835,7 +842,7 @@ export class Decorator {
         // Show raw heading text (no heading styling) on active lines
         continue;
       }
-      
+
       if (decoration.type === 'hide' || decoration.type === 'transparent') {
         const intersectsRaw = this.rangeIntersectsAny(range, rawRanges);
         const isHeadingMarkerHide = decoration.type === 'hide' &&
@@ -921,6 +928,8 @@ export class Decorator {
     ['checkboxChecked', this.checkboxCheckedDecorationType],
     ['frontmatter', this.frontmatterDecorationType],
     ['frontmatterDelimiter', this.frontmatterDelimiterDecorationType],
+    ['inlineMath', this.inlineMathDecorationType],
+    ['displayMath', this.displayMathDecorationType],
     // Keep this last so it is applied after backgrounds.
     ['selectionOverlay', this.selectionOverlayDecorationType],
   ]);
@@ -930,8 +939,14 @@ export class Decorator {
    * 
    * @private
    * @param {Map<DecorationType, Range[]>} filteredDecorations - Decorations grouped by type
+   * @param {DecorationRange[]} rawDecorations - Original decorations (for latexSymbol unicode)
+   * @param {string} originalText - Original document text
    */
-  private applyDecorations(filteredDecorations: Map<DecorationType, Range[]>) {
+  private applyDecorations(
+    filteredDecorations: Map<DecorationType, Range[]>,
+    rawDecorations?: DecorationRange[],
+    originalText?: string
+  ) {
     if (!this.activeEditor) {
       return;
     }
@@ -943,6 +958,63 @@ export class Decorator {
 
     const ghostFaintRanges = filteredDecorations.get('ghostFaint' as DecorationType) || [];
     this.activeEditor.setDecorations(this.ghostFaintDecorationType, ghostFaintRanges);
+
+    // Handle latexSymbol decorations dynamically
+    if (rawDecorations && originalText) {
+      this.applyLatexSymbolDecorations(rawDecorations, originalText);
+    }
+  }
+
+  /**
+   * Applies LaTeX symbol decorations by creating/reusing decoration types for each unique Unicode symbol.
+   * 
+   * @private
+   * @param {DecorationRange[]} decorations - All decorations
+   * @param {string} originalText - Original document text
+   */
+  private applyLatexSymbolDecorations(decorations: DecorationRange[], originalText: string): void {
+    if (!this.activeEditor) return;
+
+    // Group latexSymbol decorations by their unicode character
+    const symbolToRanges = new Map<string, Range[]>();
+
+    for (const dec of decorations) {
+      if (dec.type === 'latexSymbol' && dec.unicode) {
+        const range = this.createRange(dec.startPos, dec.endPos, originalText);
+        if (range) {
+          const ranges = symbolToRanges.get(dec.unicode) || [];
+          ranges.push(range);
+          symbolToRanges.set(dec.unicode, ranges);
+        }
+      }
+    }
+
+    // Clear unused cached decoration types
+    const usedSymbols = new Set(symbolToRanges.keys());
+    for (const [symbol, decorationType] of this.latexSymbolDecorationCache.entries()) {
+      if (!usedSymbols.has(symbol)) {
+        this.activeEditor.setDecorations(decorationType, []);
+      }
+    }
+
+    // Apply decorations for each unique symbol
+    for (const [unicode, ranges] of symbolToRanges.entries()) {
+      let decorationType = this.latexSymbolDecorationCache.get(unicode);
+
+      if (!decorationType) {
+        // Create new decoration type for this unicode symbol
+        decorationType = window.createTextEditorDecorationType({
+          textDecoration: 'none; display: none;',
+          before: {
+            contentText: unicode,
+            fontStyle: 'italic',
+          },
+        });
+        this.latexSymbolDecorationCache.set(unicode, decorationType);
+      }
+
+      this.activeEditor.setDecorations(decorationType, ranges);
+    }
   }
 
   /**
@@ -1125,13 +1197,13 @@ export class Decorator {
   recreateCodeDecorationType(): void {
     // Dispose the old decoration type
     this.codeDecorationType.dispose();
-    
+
     // Create a new decoration type with updated theme colors
     this.codeDecorationType = CodeDecorationType();
-    
+
     // Update the decoration type map
     this.decorationTypeMap.set('code', this.codeDecorationType);
-    
+
     // Reapply decorations with the new decoration type
     if (this.activeEditor && this.isMarkdownDocument()) {
       this.updateDecorationsForSelection();
@@ -1156,16 +1228,16 @@ export class Decorator {
   ): void {
     // Dispose the old decoration type
     oldDecorationType.dispose();
-    
+
     // Create a new decoration type
     const newDecorationType = createNew();
     updateProperty(newDecorationType);
-    
+
     // Update the decoration type map if key provided
     if (mapKey) {
       this.decorationTypeMap.set(mapKey, newDecorationType);
     }
-    
+
     // Reapply decorations with the new decoration type
     if (this.activeEditor && this.isMarkdownDocument()) {
       this.updateDecorationsForSelection();
@@ -1223,7 +1295,7 @@ export class Decorator {
     }
     this.decorationCache.clear();
     this.pendingUpdateVersion.clear();
-    
+
     // Dispose all decoration types
     for (const decorationType of this.decorationTypeMap.values()) {
       decorationType.dispose();
