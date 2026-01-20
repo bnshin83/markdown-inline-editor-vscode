@@ -175,6 +175,24 @@ export const LATEX_TO_UNICODE: Record<string, string> = {
     '\\neg': '¬',
     '\\land': '∧',
     '\\lor': '∨',
+
+    // Display/styling commands (hide completely)
+    '\\displaystyle': '',
+    '\\textstyle': '',
+    '\\scriptstyle': '',
+    '\\scriptscriptstyle': '',
+    '\\nonumber': '',
+    '\\notag': '',
+
+    // Delimiter sizing (hide the command, keep delimiter via separate handling)
+    '\\bigl': '',
+    '\\bigr': '',
+    '\\Bigl': '',
+    '\\Bigr': '',
+    '\\biggl': '',
+    '\\biggr': '',
+    '\\Biggl': '',
+    '\\Biggr': '',
 };
 
 /**
@@ -265,6 +283,18 @@ export function findLatexCommands(text: string, startOffset: number = 0): LatexR
             continue;
         }
 
+        // Handle font commands - just show content
+        if ((command === '\\mathrm' || command === '\\mathbf' || command === '\\mathit' ||
+            command === '\\boldsymbol' || command === '\\operatorname') && bracedContent) {
+            replacements.push({
+                startPos: startOffset + match.index,
+                endPos: startOffset + match.index + fullMatch.length,
+                latex: fullMatch,
+                unicode: bracedContent,
+            });
+            continue;
+        }
+
         // Check if this command has a Unicode equivalent
         const unicode = LATEX_TO_UNICODE[command];
         if (unicode) {
@@ -316,6 +346,39 @@ export function findLatexCommands(text: string, startOffset: number = 0): LatexR
                 unicode: unicode,
             });
         }
+    }
+
+    // Handle \left and \right followed by a delimiter
+    // \left( → (, \right) → ), \left[ → [, etc.
+    const leftRightRegex = /\\(left|right)([\(\)\[\]\{\}|.]|\\[a-zA-Z]+)/g;
+    while ((match = leftRightRegex.exec(text)) !== null) {
+        const fullMatch = match[0];
+        let delimiter = match[2];
+
+        // Handle special delimiters like \langle, \rangle, \|
+        const specialDelimiters: Record<string, string> = {
+            '\\langle': '⟨',
+            '\\rangle': '⟩',
+            '\\lfloor': '⌊',
+            '\\rfloor': '⌋',
+            '\\lceil': '⌈',
+            '\\rceil': '⌉',
+            '\\|': '‖',
+            '\\vert': '|',
+            '\\Vert': '‖',
+            '.': '',  // \left. or \right. = invisible delimiter
+        };
+
+        const replacement = specialDelimiters[delimiter] !== undefined
+            ? specialDelimiters[delimiter]
+            : delimiter;
+
+        replacements.push({
+            startPos: startOffset + match.index,
+            endPos: startOffset + match.index + fullMatch.length,
+            latex: fullMatch,
+            unicode: replacement,
+        });
     }
 
     return replacements;
